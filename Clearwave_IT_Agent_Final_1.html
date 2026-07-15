@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Clearwave IT Assistant</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F8FAFC; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ── Header ── */
+  #header { background: #1B5EA6; padding: 0 20px; display: flex; align-items: center; gap: 12px; height: 56px; box-shadow: 0 2px 8px rgba(27,94,166,0.3); flex-shrink: 0; }
+  #header-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; }
+  #header-title { color: white; font-weight: 600; font-size: 14px; line-height: 1.2; }
+  #header-sub { color: rgba(255,255,255,0.75); font-size: 11px; }
+  #header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  #status { display: flex; align-items: center; gap: 6px; }
+  #status-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ADE80; }
+  #status-text { color: rgba(255,255,255,0.85); font-size: 12px; }
+
+  /* ── Start Over button ── */
+  #restart-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.35); border-radius: 16px; padding: 4px 12px; color: white; font-size: 12px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background 0.15s; font-family: inherit; }
+  #restart-btn:hover { background: rgba(255,255,255,0.28); }
+
+  /* ── Confirm overlay ── */
+  #confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+  #confirm-overlay.show { display: flex; }
+  #confirm-box { background: white; border-radius: 14px; padding: 28px 28px 22px; width: 320px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); text-align: center; }
+  #confirm-box h3 { font-size: 16px; color: #1E293B; margin-bottom: 8px; }
+  #confirm-box p { font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 20px; }
+  #confirm-box .btn-row { display: flex; gap: 10px; justify-content: center; }
+  #confirm-box .btn-cancel { background: #F1F5F9; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; color: #475569; cursor: pointer; font-family: inherit; }
+  #confirm-box .btn-confirm { background: #1B5EA6; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; color: white; font-weight: 600; cursor: pointer; font-family: inherit; }
+  #confirm-box .btn-cancel:hover { background: #E2E8F0; }
+  #confirm-box .btn-confirm:hover { background: #145090; }
+
+  /* ── Name capture overlay ── */
+  #name-overlay { display: flex; position: fixed; inset: 0; background: rgba(27,94,166,0.92); z-index: 200; align-items: center; justify-content: center; }
+  #name-box { background: white; border-radius: 16px; padding: 36px 32px 28px; width: 380px; box-shadow: 0 24px 80px rgba(0,0,0,0.25); text-align: center; }
+  #name-box .logo { width: 52px; height: 52px; border-radius: 50%; background: #1B5EA6; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+  #name-box h2 { font-size: 20px; color: #1E293B; margin-bottom: 6px; }
+  #name-box p { font-size: 13px; color: #64748B; line-height: 1.5; margin-bottom: 24px; }
+  #name-box input { width: 100%; border: 1.5px solid #E2E8F0; border-radius: 10px; padding: 10px 14px; font-size: 14px; font-family: inherit; color: #1E293B; outline: none; margin-bottom: 12px; transition: border-color 0.2s; }
+  #name-box input:focus { border-color: #1B5EA6; }
+  #name-box .start-btn { width: 100%; background: #1B5EA6; border: none; border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; transition: background 0.2s; }
+  #name-box .start-btn:hover { background: #145090; }
+  #name-box .start-btn:disabled { background: #94A3B8; cursor: not-allowed; }
+
+  /* ── Progress bar ── */
+  #progress-bar { background: white; border-bottom: 0.5px solid #E2E8F0; padding: 10px 20px; flex-shrink: 0; }
+  #progress-label { font-size: 11px; color: #64748B; font-weight: 500; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  #progress-label span { color: #1B5EA6; font-weight: 600; }
+  #progress-phases { display: flex; gap: 0; align-items: flex-start; }
+  .phase-step { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .phase-dot-row { display: flex; align-items: center; }
+  .phase-circle { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; transition: all 0.3s; border: 2px solid #E2E8F0; background: white; color: #94A3B8; }
+  .phase-circle.active { border-color: #1B5EA6; background: #1B5EA6; color: white; }
+  .phase-circle.done { border-color: #16A34A; background: #16A34A; color: white; }
+  .phase-line { flex: 1; height: 2px; background: #E2E8F0; transition: background 0.3s; margin-top: 10px; }
+  .phase-line.done { background: #16A34A; }
+  .phase-line.active { background: #1B5EA6; }
+  .phase-label { font-size: 10px; color: #94A3B8; font-weight: 500; text-align: center; transition: color 0.3s; margin-top: 4px; }
+  .phase-label.active { color: #1B5EA6; }
+  .phase-label.done { color: #16A34A; }
+
+  /* ── Quick actions ── */
+  #quick-actions { background: white; border-bottom: 0.5px solid #E2E8F0; padding: 8px 16px; display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+  .quick-btn { background: #D6E4F5; border: 0.5px solid #1B5EA6; border-radius: 20px; padding: 4px 12px; font-size: 12px; color: #1B5EA6; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all 0.15s; font-family: inherit; }
+  .quick-btn:hover { background: #1B5EA6; color: white; }
+  .quick-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* ── Messages ── */
+  #messages { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+  .msg-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; }
+  .msg-row.user { flex-direction: row-reverse; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; font-weight: 600; }
+  .avatar.bot { background: #1B5EA6; }
+  .avatar.user { background: #E2E8F0; color: #475569; }
+  .bubble { max-width: 75%; padding: 10px 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .bubble.bot { background: white; color: #1E293B; border-radius: 4px 18px 18px 18px; border: 0.5px solid #E2E8F0; }
+  .bubble.user { background: #1B5EA6; color: white; border-radius: 18px 4px 18px 18px; }
+  .phase-complete-banner { display: flex; align-items: center; gap: 8px; background: #DCFCE7; border: 1px solid #16A34A; border-radius: 10px; padding: 8px 14px; font-size: 13px; color: #15803D; font-weight: 500; margin-bottom: 16px; align-self: center; }
+  .all-done-banner { display: flex; flex-direction: column; align-items: center; gap: 6px; background: #EFF6FF; border: 1px solid #1B5EA6; border-radius: 12px; padding: 14px 20px; font-size: 13px; color: #1B5EA6; font-weight: 500; margin-bottom: 16px; align-self: center; text-align: center; }
+  .typing-dots { display: flex; gap: 4px; padding: 4px 0; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #94A3B8; animation: bounce 1.2s ease-in-out infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:0.4} 40%{transform:translateY(-6px);opacity:1} }
+
+
+  /* Image cards */
+  .img-card { background: white; border: 0.5px solid #E2E8F0; border-radius: 12px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); max-width: 82%; }
+  .img-card-title { font-size: 12px; font-weight: 600; color: #1B5EA6; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .img-card img { width: 100%; border-radius: 8px; border: 1px solid #E2E8F0; display: block; }
+  .img-card-caption { font-size: 11px; color: #64748B; margin-top: 8px; line-height: 1.5; }
+  .img-card-highlight { background: #FEF3C7; border: 1px solid #D97706; border-radius: 6px; padding: 5px 10px; font-size: 11px; color: #92400E; margin-top: 8px; display: flex; align-items: center; gap: 5px; font-weight: 500; }
+  .mfa-step { display: flex; gap: 10px; align-items: flex-start; padding: 8px; background: #F0F5FC; border-radius: 8px; margin-bottom: 6px; }
+  .mfa-step-num { width: 22px; height: 22px; border-radius: 50%; background: #1B5EA6; color: white; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mfa-step-title { font-size: 12px; font-weight: 600; color: #1E293B; }
+  .mfa-step-desc { font-size: 11px; color: #64748B; margin-top: 2px; }
+
+  /* ── Input ── */
+  #input-area { background: white; border-top: 0.5px solid #E2E8F0; padding: 12px 16px; flex-shrink: 0; }
+  #input-wrap { display: flex; gap: 10px; align-items: flex-end; background: #F8FAFC; border: 1.5px solid #1B5EA6; border-radius: 24px; padding: 8px 8px 8px 16px; }
+  #input-wrap.disabled { border-color: #E2E8F0; }
+  #msg-input { flex: 1; border: none; background: transparent; font-size: 14px; color: #1E293B; resize: none; line-height: 1.5; max-height: 120px; overflow-y: auto; font-family: inherit; outline: none; }
+  #send-btn { width: 36px; height: 36px; border-radius: 50%; background: #1B5EA6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; flex-shrink: 0; }
+  #send-btn:disabled { background: #E2E8F0; cursor: not-allowed; }
+  #footer-text { text-align: center; font-size: 11px; color: #94A3B8; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- Name capture overlay — shown on first load -->
+<div id="name-overlay">
+  <div id="name-box">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+      </svg>
+    </div>
+    <h2>Welcome to Clearwave</h2>
+    <p>Before we get started with your IT onboarding, please enter your name and work email so we can keep a record of your completion.</p>
+    <input type="text" id="name-input" placeholder="Your full name" oninput="checkNameForm()"/>
+    <input type="email" id="email-input" placeholder="Your Clearwave email address" oninput="checkNameForm()" style="margin-bottom:20px"/>
+    <button class="start-btn" id="start-btn" onclick="beginChat()" disabled>Get started</button>
+  </div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <div id="header-icon">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+    </svg>
+  </div>
+  <div>
+    <div id="header-title">Clearwave IT Assistant</div>
+    <div id="header-sub">Always available · Powered by AI</div>
+  </div>
+  <div id="header-right">
+    <button id="restart-btn" onclick="showConfirm()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+      </svg>
+      Start over
+    </button>
+    <div id="status">
+      <div id="status-dot"></div>
+      <span id="status-text">Online</span>
+    </div>
+  </div>
+</div>
+
+<!-- Progress bar -->
+<div id="progress-bar">
+  <div id="progress-label">
+    IT Onboarding Progress
+    <span id="progress-status-text">Not started</span>
+  </div>
+  <div id="progress-phases">
+    <div class="phase-step">
+      <div class="phase-dot-row">
+        <div class="phase-circle" id="phase-circle-1">1</div>
+        <div class="phase-line" id="phase-line-1"></div>
+      </div>
+      <div class="phase-label" id="phase-label-1">MFA Setup</div>
+    </div>
+    <div class="phase-step">
+      <div class="phase-dot-row">
+        <div class="phase-circle" id="phase-circle-2">2</div>
+        <div class="phase-line" id="phase-line-2"></div>
+      </div>
+      <div class="phase-label" id="phase-label-2">Passwords</div>
+    </div>
+    <div class="phase-step">
+      <div class="phase-dot-row">
+        <div class="phase-circle" id="phase-circle-3">3</div>
+        <div class="phase-line" id="phase-line-3" style="background:transparent;"></div>
+      </div>
+      <div class="phase-label" id="phase-label-3">Phishing</div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick actions -->
+<div id="quick-actions">
+  <button class="quick-btn" onclick="sendQuick('I am new at Clearwave, where do I start my IT onboarding?')">Start IT onboarding</button>
+  <button class="quick-btn" onclick="sendQuick('How do I set up Microsoft Authenticator for MFA?')">Set up MFA</button>
+  <button class="quick-btn" onclick="sendQuick('What are the password requirements at Clearwave?')">Password requirements</button>
+  <button class="quick-btn" onclick="sendQuick('I received a suspicious email, what should I do?')">Report phishing</button>
+  <button class="quick-btn" onclick="sendQuick('How do I reset my password?')">Reset password</button>
+  <button class="quick-btn" onclick="sendQuick('How do I contact the IT helpdesk?')">Contact IT helpdesk</button>
+</div>
+
+<!-- Messages -->
+<div id="messages"></div>
+
+<!-- Input -->
+<div id="input-area">
+  <div id="input-wrap">
+    <textarea id="msg-input" rows="1" placeholder="Ask me anything about IT setup…"></textarea>
+    <button id="send-btn" disabled onclick="sendMessage()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+  <p id="footer-text">Clearwave IT Assistant · support@clearwave.samanage.com</p>
+</div>
+
+<!-- Confirm restart overlay -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <h3>Start over?</h3>
+    <p>This will clear the current conversation and reset your onboarding progress. You can start fresh from the beginning.</p>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="hideConfirm()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmRestart()">Yes, start over</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────
+// CONFIGURATION — update these two values before hosting
+// ─────────────────────────────────────────────────────
+const POWER_AUTOMATE_URL = 'PASTE_YOUR_POWER_AUTOMATE_URL_HERE';
+const HR_EMAIL_LABEL = 'HR Team';
+// ─────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `You are the Clearwave IT Assistant, an internal support agent for Clearwave employees.
+
+Your main purpose is to help new hires complete IT onboarding by guiding them through three topics in order:
+1. Setting up MFA using the Microsoft Authenticator app
+2. Understanding Clearwave password requirements and best practices
+3. Recognizing and reporting phishing attacks
+
+You also answer general IT questions at any time including password resets, helpdesk contact, and suspicious emails.
+
+CLEARWAVE IT KNOWLEDGE BASE:
+
+MFA SETUP:
+- Use Microsoft Authenticator app (not Google Authenticator or Duo)
+- Download from App Store (iPhone) or Google Play (Android)
+- Setup portal: https://aka.ms/mfasetup
+- Sign in, Add sign-in method, Authenticator app, scan QR code
+- Allow notifications when prompted - required for approvals
+- Never approve MFA prompts you did not initiate - tap Deny and contact IT
+- Lost phone: contact IT helpdesk BEFORE setting up on new device
+
+PASSWORD POLICY:
+- Minimum 14 characters
+- Must include 3 of 4: uppercase, lowercase, numbers, symbols
+- Expires every 180 days
+- Last 10 passwords remembered - cannot reuse
+- Account locks after 5 failed attempts
+- MFA always required on top of password
+- Never share password with anyone including managers or IT staff
+- Self-service reset: https://aka.ms/sspr
+- Recommended: use a passphrase (4 random words plus number plus symbol) e.g. correct-Horse-Battery-Staple7!
+- Approved password managers: 1Password (contact IT), Bitwarden (personal use)
+
+PHISHING AWARENESS:
+- 10 warning signs: urgent or threatening language, mismatched sender domain, unexpected password reset, request for credentials or gift cards, generic greeting like Dear User, suspicious links, unexpected attachments (.zip or .exe), poor grammar, asks to bypass normal process, sender name does not match email address
+- Check sender: click sender name to reveal actual email address
+- Hover over links before clicking to see real URL
+- Legitimate Clearwave links go to clearwave.com or microsoft.com domains only
+- If suspicious: do NOT click, use Report Phishing button in Outlook, or forward to support@clearwave.samanage.com, then delete
+- If you already clicked: change password immediately at aka.ms/sspr, contact IT helpdesk immediately, disconnect from VPN if you downloaded anything
+- IT staff will NEVER ask for your password by email, Teams, phone, or in person
+
+IT HELPDESK:
+- Email: support@clearwave.samanage.com
+- Teams: #it-support channel
+- Hours: Monday-Friday 8AM-6PM ET
+- Security and phishing reports: support@clearwave.samanage.com
+- Password self-reset: https://aka.ms/sspr
+
+ONBOARDING FLOW:
+When a new hire says they are new or wants to start onboarding, guide them through Phase 1 (MFA) first, then Phase 2 (Passwords), then Phase 3 (Phishing). After each phase, give them a short 2-3 question quiz before moving on. Be encouraging and friendly.
+
+QUIZ QUESTION RULES - THIS IS IMPORTANT:
+Only ask situational and judgment-based questions. Never ask factual recall questions like "what website do you go to", "what is the minimum password length", "what app do we use", or "what is the URL for". Those are memory tests, not understanding tests.
+
+Instead always ask questions like:
+- Scenario-based: "Your phone buzzes with an MFA approval request but you are not trying to log in. What do you do?"
+- True/False judgment: "True or false: It is fine to approve an MFA request quickly even if you did not initiate it, just to make the notification go away."
+- What would you do: "You get an email from IT asking for your password to fix an account issue. What is your response?"
+- Spot the problem: "A colleague asks to borrow your password temporarily while their account is being reset. Is this okay and why not?"
+
+The questions should feel like real situations someone at Clearwave could actually face, not a textbook quiz.
+
+IMPORTANT - PHASE COMPLETION SIGNALS:
+When a user successfully completes a phase quiz and you are moving them to the next phase, you MUST include one of these exact tags at the very end of your message (on its own line) so the progress tracker can update:
+- After Phase 1 MFA quiz passed: [PHASE_1_COMPLETE]
+- After Phase 2 Password quiz passed: [PHASE_2_COMPLETE]
+- After Phase 3 Phishing quiz passed: [PHASE_3_COMPLETE]
+
+Always be friendly, clear, and use numbered steps. Keep answers concise. If you cannot answer something, direct the user to the IT Helpdesk.
+
+FORMATTING RULES:
+Never use asterisks in your responses. Never use markdown bold or italic formatting. Use plain text only. For emphasis, use plain language rather than formatting symbols. Use numbered lists and dashes for lists, never asterisks.`;
+
+// ── State ──
+let messages = [];
+let currentPhase = 0;
+let loading = false;
+let employeeName = '';
+let employeeEmail = '';
+
+const messagesEl = document.getElementById('messages');
+const input = document.getElementById('msg-input');
+const sendBtn = document.getElementById('send-btn');
+const inputWrap = document.getElementById('input-wrap');
+
+// ── Name capture ──
+function checkNameForm() {
+  const name = document.getElementById('name-input').value.trim();
+  const email = document.getElementById('email-input').value.trim();
+  document.getElementById('start-btn').disabled = !(name.length > 1 && email.includes('@'));
+}
+
+function beginChat() {
+  employeeName = document.getElementById('name-input').value.trim();
+  employeeEmail = document.getElementById('email-input').value.trim();
+  document.getElementById('name-overlay').style.display = 'none';
+  initChat();
+}
+
+document.getElementById('name-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('email-input').focus();
+});
+document.getElementById('email-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); if (!document.getElementById('start-btn').disabled) beginChat(); }
+});
+
+// ── Power Automate notification ──
+async function notifyHR() {
+  if (!POWER_AUTOMATE_URL || POWER_AUTOMATE_URL === 'PASTE_YOUR_POWER_AUTOMATE_URL_HERE') {
+    console.log('Power Automate URL not configured — skipping HR notification');
+    return;
+  }
+  try {
+    await fetch(POWER_AUTOMATE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: employeeName,
+        email: employeeEmail,
+        completedAt: new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }),
+        completedAtISO: new Date().toISOString()
+      })
+    });
+    console.log('HR notified successfully');
+  } catch (err) {
+    console.log('HR notification failed silently:', err);
+  }
+}
+
+// ── Progress tracker ──
+function updateProgress(phase) {
+  currentPhase = phase;
+  const labels = ['Not started', 'Phase 1 of 3 — MFA Setup', 'Phase 2 of 3 — Passwords', 'Phase 3 of 3 — Phishing', 'All complete!'];
+  document.getElementById('progress-status-text').textContent = labels[Math.min(phase, 4)] || '';
+
+  for (let i = 1; i <= 3; i++) {
+    const circle = document.getElementById(`phase-circle-${i}`);
+    const label = document.getElementById(`phase-label-${i}`);
+    const line = document.getElementById(`phase-line-${i}`);
+    circle.className = 'phase-circle';
+    label.className = 'phase-label';
+    if (line) line.className = 'phase-line';
+
+    if (i < phase) {
+      circle.classList.add('done');
+      circle.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      label.classList.add('done');
+      if (line) line.classList.add('done');
+    } else if (i === phase) {
+      circle.classList.add('active');
+      circle.textContent = i;
+      label.classList.add('active');
+      if (line) line.classList.add('active');
+    } else {
+      circle.textContent = i;
+    }
+  }
+
+  if (phase >= 4) {
+    for (let i = 1; i <= 3; i++) {
+      const circle = document.getElementById(`phase-circle-${i}`);
+      const label = document.getElementById(`phase-label-${i}`);
+      const line = document.getElementById(`phase-line-${i}`);
+      circle.className = 'phase-circle done';
+      circle.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      label.className = 'phase-label done';
+      if (line) line.className = 'phase-line done';
+    }
+    document.getElementById('phase-line-3').style.background = 'transparent';
+    document.getElementById('progress-status-text').textContent = 'All complete!';
+  }
+}
+
+function checkForPhaseCompletion(text) {
+  if (text.includes('[PHASE_1_COMPLETE]')) {
+    updateProgress(2);
+    showPhaseBanner(1);
+    return text.replace('[PHASE_1_COMPLETE]', '').trim();
+  }
+  if (text.includes('[PHASE_2_COMPLETE]')) {
+    updateProgress(3);
+    showPhaseBanner(2);
+    return text.replace('[PHASE_2_COMPLETE]', '').trim();
+  }
+  if (text.includes('[PHASE_3_COMPLETE]')) {
+    updateProgress(4);
+    showPhaseBanner(3);
+    showAllDoneBanner();
+    notifyHR();
+    return text.replace('[PHASE_3_COMPLETE]', '').trim();
+  }
+  return text;
+}
+
+function showPhaseBanner(phase) {
+  const labels = ['', 'MFA Setup', 'Password Training', 'Phishing Awareness'];
+  const banner = document.createElement('div');
+  banner.className = 'phase-complete-banner';
+  banner.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Phase ${phase} complete — ${labels[phase]} done!`;
+  messagesEl.appendChild(banner);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showAllDoneBanner() {
+  const banner = document.createElement('div');
+  banner.className = 'all-done-banner';
+  banner.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B5EA6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><strong>IT Onboarding Complete!</strong><span>Great work, ${employeeName}. Your completion has been recorded and HR has been notified.</span>`;
+  messagesEl.appendChild(banner);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ── Confirm restart ──
+function showConfirm() { document.getElementById('confirm-overlay').classList.add('show'); }
+function hideConfirm() { document.getElementById('confirm-overlay').classList.remove('show'); }
+function confirmRestart() {
+  hideConfirm();
+  messages = [];
+  currentPhase = 0;
+  messagesEl.innerHTML = '';
+  updateProgress(0);
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`phase-circle-${i}`).textContent = i;
+    document.getElementById(`phase-circle-${i}`).className = 'phase-circle';
+    document.getElementById(`phase-label-${i}`).className = 'phase-label';
+    const line = document.getElementById(`phase-line-${i}`);
+    line.className = 'phase-line';
+    if (i === 3) line.style.background = 'transparent';
+  }
+  document.getElementById('progress-status-text').textContent = 'Not started';
+  initChat();
+}
+
+document.getElementById('confirm-overlay').addEventListener('click', function(e) { if (e.target === this) hideConfirm(); });
+
+// ── Avatars ──
+function botAvatar() {
+  return `<div class="avatar bot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg></div>`;
+}
+function userAvatar() { return `<div class="avatar user">You</div>`; }
+
+// ── Messages ──
+function addMessage(role, content) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+  const isBot = role === 'assistant';
+  row.innerHTML = `${isBot ? botAvatar() : ''}<div class="bubble ${isBot ? 'bot' : 'user'}">${content.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>${!isBot ? userAvatar() : ''}`;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showTyping() {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'typing-indicator';
+  row.innerHTML = `${botAvatar()}<div class="bubble bot"><div class="typing-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>`;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function hideTyping() { const t = document.getElementById('typing-indicator'); if (t) t.remove(); }
+
+function setLoading(val) {
+  loading = val;
+  sendBtn.disabled = val || !input.value.trim();
+  inputWrap.className = val ? 'disabled' : '';
+  input.disabled = val;
+  document.querySelectorAll('.quick-btn').forEach(b => b.disabled = val);
+}
+
+// ── Sending ──
+async function sendQuick(text) { input.value = ''; await doSend(text); }
+
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text || loading) return;
+  input.value = '';
+  input.style.height = 'auto';
+  updateSendBtn();
+  await doSend(text);
+}
+
+async function doSend(text) {
+  if (currentPhase === 0 && (text.toLowerCase().includes('onboard') || text.toLowerCase().includes('new') || text.toLowerCase().includes('start'))) {
+    updateProgress(1);
+  }
+
+  messages.push({ role: 'user', content: text });
+  addMessage('user', text);
+  setLoading(true);
+  showTyping();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: messages.map(m => ({ role: m.role, content: m.content }))
+      })
+    });
+    const data = await res.json();
+    let reply = data.content?.[0]?.text || 'Sorry, I could not get a response. Please contact support@clearwave.samanage.com';
+    reply = checkForPhaseCompletion(reply);
+    messages.push({ role: 'assistant', content: reply });
+    hideTyping();
+    addMessage('assistant', reply);
+    const rl = reply.toLowerCase();
+    if (rl.includes('authenticator') || rl.includes('mfasetup') || rl.includes('qr code') || rl.includes('phase 1')) {
+      showMFAStepsCard();
+    }
+    if (rl.includes('report phishing') || rl.includes('red shield') || rl.includes('phishing button') || rl.includes('phase 3')) {
+      showPhishingImageCard();
+    }
+  } catch {
+    hideTyping();
+    const err = 'I am having trouble connecting right now. Please contact the IT Helpdesk at support@clearwave.samanage.com';
+    messages.push({ role: 'assistant', content: err });
+    addMessage('assistant', err);
+  } finally {
+    setLoading(false);
+    input.focus();
+  }
+}
+
+function updateSendBtn() {
+  sendBtn.disabled = !input.value.trim() || loading;
+  const svg = sendBtn.querySelector('svg');
+  svg.querySelector('line').setAttribute('stroke', sendBtn.disabled ? '#94A3B8' : 'white');
+  svg.querySelector('polygon').setAttribute('stroke', sendBtn.disabled ? '#94A3B8' : 'white');
+  sendBtn.style.background = sendBtn.disabled ? '#E2E8F0' : '#1B5EA6';
+}
+
+input.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  updateSendBtn();
+});
+input.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+
+// Embedded images
+const OUTLOOK_RIBBON_IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABxsAAABGCAYAAAAU//r/AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAADV8SURBVHhe7d1/XFRV/j/wF/gDC/xRiYL4Y3WhyMRypCD9KPQV3cTM0lwxIYvVXViqBbeACrdWsQRL6Acr+5HFRW2Dav1Rga3CftBWjVZHAk2NSs1gkNHyVwmk3O8fMOPMmRm4M8xvXs/H4zzKc87M3Hu598yZ+77nHA9JkiQQEREREREREREREREREZnw448/orGxEX369IGnpyc8PDwAAJ5iRSIiIiIiIiIiIiIiIiIiXd7e3vD390drayva2tqgGc/IYCMRERERERERERERERERdenGG2+En58frl69ira2NoDBRiIiIiIiIiIiIiIiIiKSy8fHB7169cK1a9cgSRKDjUREREREREREREREREQkn7+/P65du4a2tjYGG4mIiIiIiIiIiIiIiIhIvr59+6Jv3764du0ag41EREREREREREREREREZJ7BgwdzZCMRERERERERERERERERma9fv34c2UhERERERERERERERERE5vPw8GCwkYiIiIiIiIiIiIiIiIjMx2AjEREREREREREREREREVlMkiQGG4lqampQU1MjZhORnfAadCwef3JFPG+JrIPXEhEROSt+RxERtWN7SK6gra2NwUYiIiIiIiIiIiIiIiIisoyHJEmSmEnUk2ieDBk/frxYRER2wGvQsXj8yRXxvCWyDl5LRETkrLr7HdXS0oJvv/0W+/btw4ULF9DS0iJWIbILLy8vjBw5EoGBgRg3bpxYTNSl7raHRPZQXV3NYCMRG2wix+I16Fg8/uSKeN4SWQevJSIiclbd+Y5qaWnBjh070NzcjEmTJmHo0KHw8vISqxHZzYULF1BXV4f/+7//w3333YfQ0FCxCpFJ3WkPieylurqa06gSERERERERERGR69MEGgcOHIiYmBiMHDmSgUZyuIEDByI0NBRPP/00lEol6urqxCpERC6PwUYiIiIiIiIiIiJyeZogzn333ScWETmcl5cXFixYgI8++kgsIiJyeQw2EhERERERERERkcv76quvcMcdd4jZRE5j4MCBuHbtmphNROTyGGwkIiIiIiIiIiIil9fU1IQhQ4aI2UROxdOTt+SJ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';
+
+function showPhishingImageCard() {
+  if (document.getElementById('phishing-img-card')) return;
+  const card = document.createElement('div');
+  card.className = 'img-card';
+  card.id = 'phishing-img-card';
+  card.innerHTML = `
+    <div class="img-card-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1B5EA6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Your Outlook Ribbon
+    </div>
+    <img src="` + OUTLOOK_RIBBON_IMG + `" alt="Outlook ribbon showing the red shield Report Phishing button"/>
+    <div class="img-card-highlight">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      The red shield icon is the Report Phishing button — 4th from the left
+    </div>
+    <div class="img-card-caption">Click this on any suspicious email to report it to IT. If you cannot find it, forward the email to support@clearwave.samanage.com instead.</div>
+  `;
+  messagesEl.appendChild(card);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showMFAStepsCard() {
+  if (document.getElementById('mfa-steps-card')) return;
+  const card = document.createElement('div');
+  card.className = 'img-card';
+  card.id = 'mfa-steps-card';
+  card.innerHTML = `
+    <div class="img-card-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1B5EA6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      MFA Setup — 5 Steps
+    </div>
+    <div class="mfa-step"><div class="mfa-step-num">1</div><div><div class="mfa-step-title">Download Microsoft Authenticator</div><div class="mfa-step-desc">Open the App Store (iPhone) or Google Play (Android). Search Microsoft Authenticator — install the app by Microsoft Corporation.</div></div></div><div class="mfa-step"><div class="mfa-step-num">2</div><div><div class="mfa-step-title">Go to aka.ms/mfasetup on your computer</div><div class="mfa-step-desc">Sign in with your Clearwave email and password. Click + Add sign-in method.</div></div></div><div class="mfa-step"><div class="mfa-step-num">3</div><div><div class="mfa-step-title">Choose Authenticator app</div><div class="mfa-step-desc">Select Microsoft Authenticator and click Next until a QR code appears on screen.</div></div></div><div class="mfa-step"><div class="mfa-step-num">4</div><div><div class="mfa-step-title">Scan the QR code with your phone</div><div class="mfa-step-desc">In the Authenticator app tap + then Work or school account then Scan QR code. Point your camera at the screen.</div></div></div><div class="mfa-step"><div class="mfa-step-num">5</div><div><div class="mfa-step-title">Approve the test notification</div><div class="mfa-step-desc">Microsoft sends a test push to your phone. Tap Approve to complete the setup.</div></div></div>
+    <div class="img-card-caption">Need help? Contact IT at support@clearwave.samanage.com</div>
+  `;
+  messagesEl.appendChild(card);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+
+// ── Init ──
+function initChat() {
+  const welcome = `Hi ${employeeName}! I'm the Clearwave IT Assistant.\n\nI'll guide you through your IT onboarding in 3 quick phases — MFA setup, password best practices, and phishing awareness. Each one ends with a short knowledge check.\n\nClick 'Start IT onboarding' above or just type 'let's start' whenever you're ready.`;
+  addMessage('assistant', welcome);
+  messages.push({ role: 'assistant', content: welcome });
+}
+</script>
+</body>
+</html>
